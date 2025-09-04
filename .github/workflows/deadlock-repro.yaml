@@ -1,0 +1,51 @@
+name: Qodana
+on:
+  push:
+    branches:
+      - deadlock-repro
+
+jobs:
+  qodana:
+    strategy:
+      matrix:
+        iteration: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      checks: write
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Set up JDKs
+        uses: actions/setup-java@v4
+        with:
+          java-version: |
+            8
+            11
+            17
+            21
+          distribution: 'temurin'
+      - name: Configure Gradle JDK paths
+        run: |
+          container_jdk_paths=$(find "${{ env.JDK_HOST_DIR }}" -maxdepth 1 -mindepth 1 -printf "${{ env.JDK_CONTAINER_DIR }}/%f," | sed 's/,$//')
+          gradle_config_line="org.gradle.java.installations.paths=$container_jdk_paths"
+          echo "Gradle config line: $gradle_config_line"
+          echo "" >> "${{ env.PROJECT_DIR }}/gradle.properties"
+          echo "$gradle_config_line" >> "${{ env.PROJECT_DIR }}/gradle.properties"
+        env:
+          JDK_HOST_DIR: /usr/lib/jvm
+          JDK_CONTAINER_DIR: /opt/idea/jdks
+          PROJECT_DIR: .
+      - name: 'Qodana Scan'
+        uses: JetBrains/qodana-action@v2025.2
+        with:
+          pr-mode: 'true'
+          post-pr-comment: 'false'
+          use-caches: 'false'
+          args: '--property=project.open.type=Gradle,-v,/usr/lib/jvm:/opt/idea/jdks'
+        env:
+          QODANA_TOKEN: ${{ secrets.QODANA_TOKEN }}
+          QODANA_PR_SHA: f9399b7a9fe3a244ba75e83bf2bc6f2cb32b3011
